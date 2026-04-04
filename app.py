@@ -893,11 +893,15 @@ elif st.session_state.current_page == 'distribution':
         st.stop()
     
     df = st.session_state.df
+    
+    # 删除全为空的行（底部空白行）
+    df_clean = df.dropna(how='all')
+    
     st.subheader("📋 地层参数数据表")
-    st.dataframe(df, use_container_width=True, height=600)
+    st.dataframe(df_clean, use_container_width=True, height=600)
     
     # 添加总表下载按钮
-    csv = df.to_csv(index=False)
+    csv = df_clean.to_csv(index=False)
     st.download_button(
         label="📥 下载完整数据表",
         data=csv,
@@ -905,20 +909,20 @@ elif st.session_state.current_page == 'distribution':
         mime="text/csv"
     )
     
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numeric_cols = df_clean.select_dtypes(include=[np.number]).columns.tolist()
     
     if numeric_cols:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("记录总数", len(df))
+            st.metric("记录总数", len(df_clean))
         with col2:
             st.metric("数值参数", len(numeric_cols))
         with col3:
-            st.metric("参数均值", f"{df[numeric_cols[0]].mean():.2f}" if numeric_cols else "N/A")
+            st.metric("参数均值", f"{df_clean[numeric_cols[0]].mean():.2f}" if numeric_cols else "N/A")
         with col4:
-            st.metric("标准差", f"{df[numeric_cols[0]].std():.2f}" if numeric_cols else "N/A")
+            st.metric("标准差", f"{df_clean[numeric_cols[0]].std():.2f}" if numeric_cols else "N/A")
         
-        st.dataframe(df[numeric_cols].describe().round(2), use_container_width=True)
+        st.dataframe(df_clean[numeric_cols].describe().round(2), use_container_width=True)
 
 # ==================== 多元概率分布分析页面 ====================
 elif st.session_state.current_page == 'multivariate':
@@ -943,7 +947,7 @@ elif st.session_state.current_page == 'multivariate':
     df_raw = pd.read_csv("shanghai.csv")
     df = df_raw[params].dropna()
     
-    # ---------- 1. 参数统计表 ----------
+    # ---------- 1. 参数统计表（按要求设置小数位数）----------
     st.subheader("📊 参数统计表")
     stats_data = []
     for col in params:
@@ -952,11 +956,26 @@ elif st.session_state.current_page == 'multivariate':
         max_val = df[col].max()
         std_val = df[col].std()
         cov_val = std_val / mean_val if mean_val != 0 else np.nan
+        
+        # 根据参数名设置小数位数
+        if col == "e":
+            mean_str = f"{mean_val:.3f}"
+            min_str = f"{min_val:.3f}"
+            max_str = f"{max_val:.3f}"
+        elif col == "Es":
+            mean_str = f"{mean_val:.2f}"
+            min_str = f"{min_val:.2f}"
+            max_str = f"{max_val:.2f}"
+        else:  # wl, wp, ccq, phicq
+            mean_str = f"{mean_val:.1f}"
+            min_str = f"{min_val:.1f}"
+            max_str = f"{max_val:.1f}"
+        
         stats_data.append({
             "参数": get_display_name(col),
-            "均值": f"{mean_val:.4f}",
-            "最小值": f"{min_val:.4f}",
-            "最大值": f"{max_val:.4f}",
+            "均值": mean_str,
+            "最小值": min_str,
+            "最大值": max_str,
             "标准差": f"{std_val:.4f}",
             "变异系数": f"{cov_val:.4f}"
         })
@@ -1006,6 +1025,9 @@ elif st.session_state.current_page == 'multivariate':
         else:
             log_display = log_var
             
+        # p值保留三位有效数字
+        p_val_str = f"{d.pvalue:.3g}"
+        
         johnson_data.append({
             "参数": log_display,
             "类型": d.type.upper(),
@@ -1015,7 +1037,7 @@ elif st.session_state.current_page == 'multivariate':
             "bY": f"{d.bY:.4f}",
             "z": f"{z_val:.4f}",
             "D": f"{d.statistic:.4f}",
-            "p": f"{d.pvalue:.4f}"
+            "p": p_val_str
         })
     df_johnson = pd.DataFrame(johnson_data)
     # 使用HTML表格显示
