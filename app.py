@@ -112,7 +112,7 @@ def get_stats_db():
             
             # 总访问量
             c.execute("SELECT COUNT(*) FROM visits")
-            total_visits = c.fetchone()[0]
+            total_visits =  c.fetchone()[0]
             
             # 总计算次数
             c.execute("SELECT COUNT(*) FROM calculations")
