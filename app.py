@@ -884,7 +884,7 @@ elif st.session_state.current_page == 'distribution':
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">📊 上海规范推荐地层参数分布</h1>
-        <p class="page-subtitle">基于上海地区工程地质规范的地层参数统计分析</p>
+        <p class="page-subtitle">基于《上海市地基基础设计标准》（DGJ08-11-2018）的地层参数统计分析</p>
     </div>
     """, unsafe_allow_html=True)
     
