@@ -1310,13 +1310,13 @@ elif st.session_state.current_page == 'hss':
     model = st.session_state.model
     hss = model.io.database.hss
     
-    # 参数含义字典（更新为带下标的名称）
+    # 参数含义字典（更新为带下标的名称，且 φ' 和 c'）
     param_meaning = {
         "Eoed": "切线模量（参考应力下）",
         "E50": "割线模量（参考应力下）",
         "Eur": "加卸载模量（参考应力下）",
-        "phi": "有效内摩擦角",
-        "c": "有效粘聚力",
+        "phi": "φ' 有效内摩擦角",
+        "c": "c' 有效粘聚力",
         "psi": "剪胀角",
         "Rf": "破坏比",
         "K0": "初始静止侧压力系数",
@@ -1332,8 +1332,8 @@ elif st.session_state.current_page == 'hss':
         "Eoed": "E<sub>oed</sub>",
         "E50": "E<sub>50</sub>",
         "Eur": "E<sub>ur</sub>",
-        "phi": "φ",
-        "c": "c",
+        "phi": "φ'",
+        "c": "c'",
         "psi": "ψ",
         "Rf": "R<sub>f</sub>",
         "K0": "K<sub>0</sub>",
@@ -1356,35 +1356,42 @@ elif st.session_state.current_page == 'hss':
         
         input_dict = {}
         
-        # e 强制启用
-        st.checkbox("启用", value=True, disabled=True, key="enable_e")
-        e_val = st.number_input("孔隙比 e", value=0.7, format="%.3f", key="hss_e")
+        # e 强制启用（复选框禁用）
+        st.markdown("**孔隙比 e**")
+        col_check, col_input = st.columns([0.2, 0.8])
+        with col_check:
+            st.checkbox("启用", value=True, disabled=True, key="enable_e")
+        with col_input:
+            e_val = st.number_input("", value=0.7, format="%.3f", key="hss_e", label_visibility="collapsed")
         input_dict["e"] = e_val
         
-        # Es - 使用HTML标签显示下标
-        enable_Es = st.checkbox("启用", value=True, key="enable_Es")
-        st.markdown("压缩模量 E<sub>s</sub> (MPa)", unsafe_allow_html=True)
-        Es_val = st.number_input(
-            "", value=10.0, format="%.2f", key="hss_Es", disabled=not enable_Es, label_visibility="collapsed"
-        )
+        # Es - 默认不启用，复选框与输入框同行
+        st.markdown("**压缩模量 E<sub>s</sub> (MPa)**", unsafe_allow_html=True)
+        col_check, col_input = st.columns([0.2, 0.8])
+        with col_check:
+            enable_Es = st.checkbox("启用", value=False, key="enable_Es")
+        with col_input:
+            Es_val = st.number_input("", value=10.0, format="%.2f", key="hss_Es", disabled=not enable_Es, label_visibility="collapsed")
         if enable_Es:
             input_dict["Es"] = Es_val
         
-        # sigma
-        enable_sigma = st.checkbox("启用", value=True, key="enable_sigma")
-        sigma_val = st.number_input(
-            "竖向应力 σ (kPa)", value=100.0, format="%.2f", key="hss_sigma",
-            disabled=not enable_sigma
-        )
+        # sigma - 默认不启用，标签改为有效竖向应力 σ'
+        st.markdown("**有效竖向应力 σ' (kPa)**")
+        col_check, col_input = st.columns([0.2, 0.8])
+        with col_check:
+            enable_sigma = st.checkbox("启用", value=False, key="enable_sigma")
+        with col_input:
+            sigma_val = st.number_input("", value=100.0, format="%.2f", key="hss_sigma", disabled=not enable_sigma, label_visibility="collapsed")
         if enable_sigma:
             input_dict["sigma"] = sigma_val
         
-        # ps - 使用HTML标签显示下标
-        enable_ps = st.checkbox("启用", value=True, key="enable_ps")
-        st.markdown("比贯入阻力 p<sub>s</sub> (MPa)", unsafe_allow_html=True)
-        ps_val = st.number_input(
-            "", value=10.0, format="%.1f", key="hss_ps", disabled=not enable_ps, label_visibility="collapsed"
-        )
+        # ps - 默认不启用
+        st.markdown("**比贯入阻力 p<sub>s</sub> (MPa)**", unsafe_allow_html=True)
+        col_check, col_input = st.columns([0.2, 0.8])
+        with col_check:
+            enable_ps = st.checkbox("启用", value=False, key="enable_ps")
+        with col_input:
+            ps_val = st.number_input("", value=10.0, format="%.1f", key="hss_ps", disabled=not enable_ps, label_visibility="collapsed")
         if enable_ps:
             input_dict["ps"] = ps_val
         
