@@ -40,7 +40,7 @@ from sgp.models import Model
 
 # 页面配置 - 必须放在最前面
 st.set_page_config(
-    page_title="上海岩土工程参数智能分析平台",
+    page_title="上海岩土工程参数智能取值平台",
     page_icon="🏗️",
     layout="wide",
     initial_sidebar_state="auto"
@@ -884,7 +884,7 @@ elif st.session_state.current_page == 'distribution':
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">📊 上海规范推荐地层参数分布</h1>
-        <p class="page-subtitle">基于《上海市地基基础设计标准》（DGJ08-11-2018）的地层参数统计分析</p>
+        <p class="page-subtitle">基于《上海市地基基础设计标准》（DGJ08-11-2018）的地层参数统计</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -932,7 +932,7 @@ elif st.session_state.current_page == 'multivariate':
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">📈 多元概率分布分析</h1>
-        <p class="page-subtitle">参数统计、Johnson分布参数及对数相关系数矩阵</p>
+        <p class="page-subtitle">上海地区土体参数（孔隙比e、液限w<sub>l</sub>、塑限w<sub>p</sub>、固结快剪粘聚力c<sub>cq</sub>、固结快剪内摩擦角φ<sub>cq</sub>、压缩模量E<sub>s</sub>）参数统计、Johnson分布参数及对数相关系数矩阵</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1062,7 +1062,12 @@ elif st.session_state.current_page == 'prediction':
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">🔮 土体参数智能预测</h1>
-        <p class="page-subtitle">支持多元概率分布预测 (MPD) 和 ANN预测</p>
+        <p class="page-subtitle">支持多元概率分布预测 (MPD) 和 ANN预测<br>
+        多元概率分布预测：可在六个参数（孔隙比 e、液限 w<sub>l</sub>、塑限 w<sub>p</sub>、固结快剪黏聚力 c<sub>cq</sub>、
+        固结快剪内摩擦角 φ<sub>cq</sub>、压缩模量 E<sub>s</sub>）中任意选择输入与输出，输出目标参数的概率密度函数、中位数和95%置信区间。<br>
+        ANN预测：结合人工神经网络，可根据孔隙比 e、液限 w<sub>l</sub>、塑限 w<sub>p</sub> 预测 固结快剪黏聚力 c<sub>cq</sub>、
+        固结快剪内摩擦角 φ<sub>cq</sub>、压缩模量 E<sub>s</sub>
+        </p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1299,7 +1304,7 @@ elif st.session_state.current_page == 'hss':
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">🧱 HSS模型参数计算</h1>
-        <p class="page-subtitle">小应变硬化模型参数计算（基于上海地区经验公式）</p>
+        <p class="page-subtitle">可根据孔隙比e（必选）、压缩模量E<sub>s</sub>、有效竖向应力σ'、比贯入阻力p<sub>s</sub>计算小应变硬化（HSS）模型参数（基于上海地区经验公式）</p>
     </div>
     """, unsafe_allow_html=True)
     
