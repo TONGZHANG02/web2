@@ -876,7 +876,7 @@ if st.session_state.current_page == 'home':
             if st.button("进入HSS模型", key="btn_hss", use_container_width=True):
                 go_page('hss')
 
-# ==================== 参数分布页面 ====================
+# ==================== 参数分布页面（优化标注位置，修复 opacity 错误）====================
 elif st.session_state.current_page == 'distribution':
     if st.button("← 返回首页", key="back_dist"):
         go_home()
@@ -923,6 +923,107 @@ elif st.session_state.current_page == 'distribution':
             st.metric("标准差", f"{df_clean[numeric_cols[0]].std():.2f}" if numeric_cols else "N/A")
         
         st.dataframe(df_clean[numeric_cols].describe().round(2), use_container_width=True)
+    
+    # ========== 范围条形图可视化（支持所有参数列，文本内部左侧，误差线半透明）==========
+    st.markdown("---")
+    st.subheader("📊 地层参数范围可视化")
+    
+    # 获取所有可能包含范围数据的列（排除明显非数值的列）
+    exclude_keywords = ['序号', '名称', '层号', '土层', 'soil', 'layer', '编号']
+    param_columns = {}
+    for col in df_clean.columns:
+        if any(kw in col for kw in exclude_keywords):
+            continue
+        if df_clean[col].astype(str).str.contains('~').any() or pd.to_numeric(df_clean[col], errors='coerce').notna().any():
+            param_columns[col] = col
+    
+    if not param_columns:
+        st.warning("未找到可识别的参数列，请检查数据格式。")
+    else:
+        # 提取土层标识：优先使用“土层序号”和“土层名称”
+        if '土层序号' in df_clean.columns:
+            if '土层名称' in df_clean.columns:
+                soil_labels = df_clean['土层序号'].astype(str) + " " + df_clean['土层名称'].fillna('')
+            else:
+                soil_labels = df_clean['土层序号'].astype(str)
+        else:
+            soil_labels = df_clean.iloc[:, 0].astype(str)
+        
+        selected_col = st.selectbox("选择参数", list(param_columns.keys()))
+        
+        # 解析范围字符串
+        min_vals = []
+        max_vals = []
+        mean_vals = []
+        valid_indices = []
+        
+        for idx, val_str in enumerate(df_clean[selected_col]):
+            if pd.isna(val_str) or val_str == "":
+                continue
+            try:
+                if '~' in str(val_str):
+                    parts = str(val_str).split('~')
+                    min_val = float(parts[0].strip())
+                    max_val = float(parts[1].strip())
+                    mean_val = (min_val + max_val) / 2
+                else:
+                    min_val = max_val = mean_val = float(val_str)
+                min_vals.append(min_val)
+                max_vals.append(max_val)
+                mean_vals.append(mean_val)
+                valid_indices.append(idx)
+            except:
+                continue
+        
+        if not min_vals:
+            st.error(f"无法解析参数 '{selected_col}' 的数据，请检查数据格式（应为数值或 'min~max' 形式）。")
+        else:
+            valid_labels = [soil_labels[i] for i in valid_indices]
+            
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=mean_vals,
+                y=valid_labels,
+                orientation='h',
+                marker_color='#3b82f6',
+                error_x=dict(
+                    type='data',
+                    symmetric=False,
+                    array=[max_vals[i] - mean_vals[i] for i in range(len(mean_vals))],
+                    arrayminus=[mean_vals[i] - min_vals[i] for i in range(len(mean_vals))],
+                    visible=True,
+                    color='rgba(128,128,128,0.6)',  # 半透明灰色
+                    thickness=2
+                ),
+                name='均值 (范围)',
+                text=[f"{mean_vals[i]:.2f} [{min_vals[i]:.2f}~{max_vals[i]:.2f}]" for i in range(len(mean_vals))],
+                textposition='inside',
+                insidetextanchor='start',
+                textfont=dict(size=10, color='white'),
+                cliponaxis=False
+            ))
+            
+            fig.update_layout(
+                title=f"{selected_col} 在各土层中的分布范围",
+                xaxis_title=selected_col,
+                yaxis_title="地层",
+                height=max(400, len(valid_labels) * 35),
+                margin=dict(l=10, r=10, t=50, b=10),
+                showlegend=False,
+                yaxis=dict(autorange="reversed", tickfont=dict(size=10)),
+                xaxis=dict(title_font=dict(size=12))
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            with st.expander("查看详细数据"):
+                df_range = pd.DataFrame({
+                    "地层": valid_labels,
+                    "最小值": [f"{v:.3f}" for v in min_vals],
+                    "最大值": [f"{v:.3f}" for v in max_vals],
+                    "均值": [f"{v:.3f}" for v in mean_vals]
+                })
+                st.dataframe(df_range, use_container_width=True)
 
 # ==================== 多元概率分布分析页面 ====================
 elif st.session_state.current_page == 'multivariate':
@@ -947,7 +1048,7 @@ elif st.session_state.current_page == 'multivariate':
     df_raw = pd.read_csv("shanghai.csv")
     df = df_raw[params].dropna()
     
-    # ---------- 1. 参数统计表（按要求设置小数位数）----------
+    # ---------- 1. 参数统计表 ----------
     st.subheader("📊 参数统计表")
     stats_data = []
     for col in params:
@@ -957,7 +1058,6 @@ elif st.session_state.current_page == 'multivariate':
         std_val = df[col].std()
         cov_val = std_val / mean_val if mean_val != 0 else np.nan
         
-        # 根据参数名设置小数位数
         if col == "e":
             mean_str = f"{mean_val:.3f}"
             min_str = f"{min_val:.3f}"
@@ -966,7 +1066,7 @@ elif st.session_state.current_page == 'multivariate':
             mean_str = f"{mean_val:.2f}"
             min_str = f"{min_val:.2f}"
             max_str = f"{max_val:.2f}"
-        else:  # wl, wp, ccq, phicq
+        else:
             mean_str = f"{mean_val:.1f}"
             min_str = f"{min_val:.1f}"
             max_str = f"{max_val:.1f}"
@@ -980,23 +1080,18 @@ elif st.session_state.current_page == 'multivariate':
             "变异系数": f"{cov_val:.4f}"
         })
     df_stats = pd.DataFrame(stats_data)
-    # 使用HTML表格显示
     st.markdown(df_to_html_table(df_stats), unsafe_allow_html=True)
     
     # ---------- 2. 约翰逊分布参数表 ----------
     st.subheader("📈 约翰逊分布参数（对数空间）")
-    # 获取分布结果
     dist_result = model.mpd.dist()
     
-    # 获取每个变量的最优 z 值（通过重新调用 optimize，利用缓存）
     log_vars = ["log(e)", "log(wl)", "log(wp)", "log(ccq)", "log(phicq)", "log(Es)"]
     df_log = pd.DataFrame()
     for var, log_var in zip(params, log_vars):
         df_log[log_var] = np.log(df[var])
     
-    # 调用 optimize 获取优化结果（包含 z 值）
     with st.spinner("正在加载..."):
-        # 注意 optimize 返回的是 (results, statistics, pvalues) 元组
         opt_results, _, _ = model.mpd.optimize(
             df_log,
             method=model.io.database.mpd.optimizer,
@@ -1005,11 +1100,8 @@ elif st.session_state.current_page == 'multivariate':
     
     johnson_data = []
     for var, log_var in zip(params, log_vars):
-        # 从 dist_result 中获取分布参数
-        d = dist_result.dists[var]  # 注意 dist_result.dists 的键是原始变量名
-        # 从 opt_results 中获取 z 值（opt_results 是字典，键为 log_var）
+        d = dist_result.dists[var]
         z_val = opt_results[log_var].x[0]
-        # 构建对数变量显示名称
         if var == "e":
             log_display = "log(e)"
         elif var == "wl":
@@ -1024,10 +1116,8 @@ elif st.session_state.current_page == 'multivariate':
             log_display = "log(E<sub>s</sub>)"
         else:
             log_display = log_var
-            
-        # p值保留三位有效数字
-        p_val_str = f"{d.pvalue:.3g}"
         
+        p_val_str = f"{d.pvalue:.3g}"
         johnson_data.append({
             "参数": log_display,
             "类型": d.type.upper(),
@@ -1040,21 +1130,15 @@ elif st.session_state.current_page == 'multivariate':
             "p": p_val_str
         })
     df_johnson = pd.DataFrame(johnson_data)
-    # 使用HTML表格显示
     st.markdown(df_to_html_table(df_johnson), unsafe_allow_html=True)
     
     # ---------- 3. 对数相关系数表 ----------
     st.subheader("🔗 对数相关系数矩阵")
-    # 使用自举计算的相关系数矩阵（X 空间，但对应对数变量）
-    corr_matrix = dist_result.C  # 自举后的相关系数矩阵
-    
-    # 准备行列标题（带HTML下标）
+    corr_matrix = dist_result.C
     log_vars_display = ["log(e)", "log(w<sub>l</sub>)", "log(w<sub>p</sub>)", "log(c<sub>cq</sub>)", "log(φ<sub>cq</sub>)", "log(E<sub>s</sub>)"]
-    
-    # 使用专门的相关系数矩阵HTML表格函数
     st.markdown(corr_matrix_to_html_table(corr_matrix, log_vars_display, log_vars_display), unsafe_allow_html=True)
 
-# ==================== 土体参数智能预测页面（MPD + ANN）====================
+# ==================== 土体参数智能预测页面 ====================
 elif st.session_state.current_page == 'prediction':
     if st.button("← 返回首页", key="back_pred"):
         go_home()
@@ -1106,24 +1190,18 @@ elif st.session_state.current_page == 'prediction':
         )
         
         if mode == "ANN预测":
-            # ANN预测模式：固定输入参数为 e, wl, wp，使用HTML标签显示下标
             st.info("ANN预测需要输入孔隙比 e、液限 w_l、塑限 w_p")
             input_vars = ["e", "wl", "wp"]
             input_values = {}
-            # 使用自定义布局显示带下标的标签
             with st.container():
-                # 孔隙比 e
                 e_val = st.number_input("孔隙比 e", value=float(sample_means["e"]), format="%.3f", key="ann_e")
                 input_values["e"] = e_val
-                # 液限 w_l
                 wl_val = st.number_input("液限 w_l (%)", value=float(sample_means["wl"]), format="%.3f", key="ann_wl")
                 input_values["wl"] = wl_val
-                # 塑限 w_p
                 wp_val = st.number_input("塑限 w_p (%)", value=float(sample_means["wp"]), format="%.3f", key="ann_wp")
                 input_values["wp"] = wp_val
             target_var = None
         else:
-            # MPD 模式：用户自由选择已知参数
             input_vars = st.multiselect(
                 "已知参数", 
                 original_vars, 
@@ -1138,7 +1216,6 @@ elif st.session_state.current_page == 'prediction':
                 )
                 input_values[var] = val
             
-            # 目标参数选项：排除已选中的已知参数
             target_options = [v for v in original_vars if v not in input_vars]
             if not target_options:
                 st.warning("请至少保留一个参数作为目标参数")
@@ -1156,14 +1233,11 @@ elif st.session_state.current_page == 'prediction':
     with col_right:
         if calc_btn:
             if mode == "多元概率分布预测 (MPD)" and target_var is not None:
-                # 记录计算
                 record_calculation_db()
-                
                 with st.spinner("正在加载..."):
                     result_dict = mpd.predict(**input_values)
                     res = result_dict[target_var]
 
-                # 提取数据
                 x_uncond = np.asarray(res.unconditioning.y0)
                 pdf_uncond = np.asarray(res.unconditioning.pdf)
                 lb_uncond = res.unconditioning.lb
@@ -1178,12 +1252,9 @@ elif st.session_state.current_page == 'prediction':
                 mean_cond_display = res.conditioning.mean
                 pdf_at_mean_cond = np.interp(mean_cond_display, x_cond, pdf_cond)
 
-                # 注意：全局字体已在文件开头配置，这里无需再设置
-                # 获取目标参数的 LaTeX 格式（用于图表标题和轴标签）和 HTML 格式（用于提示）
                 target_latex = get_latex_name(target_var)
                 target_html = get_display_name(target_var)
 
-                # 在图片上方显示目标参数（大字体，带渐变背景）
                 st.markdown(f"""
                 <div style="
                     background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
@@ -1199,7 +1270,6 @@ elif st.session_state.current_page == 'prediction':
                 </div>
                 """, unsafe_allow_html=True)
 
-                # 绘图（使用 LaTeX 数学模式）
                 fig, ax = plt.subplots(figsize=(10, 6))
                 ax.plot(x_uncond, pdf_uncond, 'k--', label="无条件 PDF")
                 mask_u = (x_uncond >= lb_uncond) & (x_uncond <= ub_uncond)
@@ -1224,7 +1294,6 @@ elif st.session_state.current_page == 'prediction':
 
                 st.pyplot(fig)
 
-                # 结果显示区域 - 使用带背景色的框美化
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("""
@@ -1267,9 +1336,7 @@ elif st.session_state.current_page == 'prediction':
                 st.error("无法预测：请至少保留一个参数作为目标参数")
             
             else:  # ANN预测
-                # 记录计算
                 record_calculation_db()
-                
                 with st.spinner("正在加载..."):
                     try:
                         ann_results = model.ann.predict(**input_values)
@@ -1279,7 +1346,6 @@ elif st.session_state.current_page == 'prediction':
                 
                 if ann_results:
                     st.subheader("🧠 ANN 预测结果")
-                    # 构建带下标的显示数据，预测值保留两位小数
                     ann_data = []
                     for param, value in ann_results.items():
                         units_map = {"ccq": "kPa", "phicq": "°", "Es": "MPa"}
@@ -1289,7 +1355,6 @@ elif st.session_state.current_page == 'prediction':
                             "单位": units_map.get(param, "")
                         })
                     df_ann = pd.DataFrame(ann_data)
-                    # 使用HTML表格显示
                     st.markdown(df_to_html_table(df_ann), unsafe_allow_html=True)
                 else:
                     st.warning("未能获取 ANN 预测结果，请检查输入参数是否包含 e、w_l、w_p（ANN 的输入要求）")
@@ -1370,7 +1435,7 @@ elif st.session_state.current_page == 'hss':
             e_val = st.number_input("", value=0.7, format="%.3f", key="hss_e", label_visibility="collapsed")
         input_dict["e"] = e_val
         
-        # Es - 默认不启用，复选框与输入框同行
+        # Es - 默认不启用
         st.markdown("**压缩模量 E<sub>s</sub> (MPa)**", unsafe_allow_html=True)
         col_check, col_input = st.columns([0.2, 0.8])
         with col_check:
@@ -1380,7 +1445,7 @@ elif st.session_state.current_page == 'hss':
         if enable_Es:
             input_dict["Es"] = Es_val
         
-        # sigma - 默认不启用，标签改为有效竖向应力 σ'
+        # sigma - 默认不启用
         st.markdown("**有效竖向应力 σ' (kPa)**")
         col_check, col_input = st.columns([0.2, 0.8])
         with col_check:
@@ -1404,9 +1469,7 @@ elif st.session_state.current_page == 'hss':
     
     with col_right:
         if calc_btn:
-            # 记录计算
             record_calculation_db()
-            
             with st.spinner("正在加载..."):
                 try:
                     equations, outputs = hss.predict(soil_type, input_dict)
@@ -1415,7 +1478,6 @@ elif st.session_state.current_page == 'hss':
                     equations, outputs = {}, {}
             
             if outputs:
-                # 对粘聚力 c 进行非负处理
                 if 'c' in outputs and outputs['c'] < 0:
                     outputs['c'] = 0.0
                 
@@ -1426,36 +1488,25 @@ elif st.session_state.current_page == 'hss':
                     meaning = param_meaning.get(name, "")
                     display_name = param_display_names.get(name, name)
                     
-                    # 根据参数名称格式化数值
                     if name == "gamma07":
-                        # 保持科学计数法，两位有效数字
                         val_str = f"{value:.2e}"
                     elif name == "phi":
-                        # 保留一位小数
                         val_str = f"{value:.1f}"
                     elif name == "c":
-                        # 保留一位小数
                         val_str = f"{value:.1f}"
                     elif name == "psi":
-                        # 保留一位小数
                         val_str = f"{value:.1f}"
                     elif name == "G0":
-                        # 保留一位小数
                         val_str = f"{value:.1f}"
                     elif name == "nu":
-                        # 保留一位小数
                         val_str = f"{value:.1f}"
                     elif name == "pref":
-                        # 保留一位小数
                         val_str = f"{value:.1f}"
                     elif name == "m":
-                        # 保留两位小数
                         val_str = f"{value:.2f}"
                     elif name in ["Eoed", "E50", "Eur", "Rf", "K0"]:
-                        # 保留两位小数
                         val_str = f"{value:.2f}"
                     else:
-                        # 默认保留两位小数
                         val_str = f"{value:.2f}"
                     
                     data.append({
@@ -1465,7 +1516,6 @@ elif st.session_state.current_page == 'hss':
                         "单位": unit,
                     })
                 df_hss = pd.DataFrame(data)
-                # 使用HTML表格显示，以支持HTML下标标签
                 st.markdown(df_to_html_table(df_hss, escape_html=False), unsafe_allow_html=True)
             else:
                 st.warning("未能获取 HSS 预测结果，请检查输入参数。")
