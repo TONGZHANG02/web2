@@ -799,10 +799,13 @@ def load_data():
 
 # ==================== 页面路由 ====================
 if st.session_state.current_page == 'home':
-    # 记录首次访问（只记录一次）
-    if st.session_state.first_visit:
+    # ========== 修改：使用 URL 参数控制首次访问记录 ==========
+    if "_visited" not in st.query_params:
+        # 新会话（无 _visited 参数），记录访问
         record_visit_db()
-        st.session_state.first_visit = False
+        # 设置标记，避免本会话内重复记录
+        st.query_params["_visited"] = "1"
+        st.rerun()  # 刷新页面，使参数生效
     
     # 获取统计数据
     stats = get_stats_db()
