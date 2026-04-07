@@ -811,7 +811,7 @@ if st.session_state.current_page == 'home':
     stats = get_stats_db()
     
     # 首页
-    st.markdown('<h1 class="hero-title">🏗️ 上海岩土工程参数智能分析平台</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="hero-title">🏗️ 上海岩土工程参数智能取值平台</h1>', unsafe_allow_html=True)
     st.markdown('<p class="hero-subtitle">基于上海地区工程地质数据的专业分析工具</p>', unsafe_allow_html=True)
     
     # 右上角统计面板
