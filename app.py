@@ -20,14 +20,12 @@ from datetime import datetime
 import threading
 
 # ========== 配置中文字体（使用项目中的 simhei.ttf）==========
-# 确保 simhei.ttf 文件与 app.py 在同一目录下
 font_path = "simhei.ttf"
 if os.path.exists(font_path):
     fm.fontManager.addfont(font_path)
     plt.rcParams['font.family'] = fm.FontProperties(fname=font_path).get_name()
     plt.rcParams['axes.unicode_minus'] = False
 else:
-    # 如果文件不存在，降级使用系统字体（仅用于本地测试）
     plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'SimSun']
     plt.rcParams['axes.unicode_minus'] = False
 
@@ -38,7 +36,7 @@ from sgp.io import (
 )
 from sgp.models import Model
 
-# 页面配置 - 必须放在最前面
+# 页面配置
 st.set_page_config(
     page_title="上海岩土工程参数智能取值平台",
     page_icon="🏗️",
@@ -51,12 +49,9 @@ DB_FILE = "usage_stats.db"
 db_lock = threading.Lock()
 
 def init_db():
-    """初始化数据库"""
     with db_lock:
         conn = sqlite3.connect(DB_FILE, check_same_thread=False)
         c = conn.cursor()
-        
-        # 访问记录表（只记录首次访问）
         c.execute('''
             CREATE TABLE IF NOT EXISTS visits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,8 +59,6 @@ def init_db():
                 user_ip TEXT
             )
         ''')
-        
-        # 计算记录表（只记录总次数）
         c.execute('''
             CREATE TABLE IF NOT EXISTS calculations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,12 +66,10 @@ def init_db():
                 user_ip TEXT
             )
         ''')
-        
         conn.commit()
         conn.close()
 
 def record_visit_db():
-    """记录网站访问（只统计首次进入）"""
     try:
         with db_lock:
             conn = sqlite3.connect(DB_FILE, check_same_thread=False)
@@ -91,7 +82,6 @@ def record_visit_db():
         pass
 
 def record_calculation_db():
-    """记录计算次数（总次数）"""
     try:
         with db_lock:
             conn = sqlite3.connect(DB_FILE, check_same_thread=False)
@@ -104,22 +94,15 @@ def record_calculation_db():
         pass
 
 def get_stats_db():
-    """从数据库获取统计数据"""
     try:
         with db_lock:
             conn = sqlite3.connect(DB_FILE, check_same_thread=False)
             c = conn.cursor()
-            
-            # 总访问量
             c.execute("SELECT COUNT(*) FROM visits")
-            total_visits =  c.fetchone()[0]
-            
-            # 总计算次数
+            total_visits = c.fetchone()[0]
             c.execute("SELECT COUNT(*) FROM calculations")
             total_calculations = c.fetchone()[0]
-            
             conn.close()
-            
             return {
                 "total_visits": total_visits,
                 "total_calculations": total_calculations
@@ -130,10 +113,9 @@ def get_stats_db():
             "total_calculations": 0
         }
 
-# 初始化数据库
 init_db()
 
-# 自定义CSS样式 - 极致紧凑布局，消除顶部空白
+# 自定义CSS样式（保持不变）
 st.markdown("""
 <style>
     /* 全局重置边距，消除所有默认留白 */
@@ -496,7 +478,7 @@ if 'df' not in st.session_state:
 if 'first_visit' not in st.session_state:
     st.session_state.first_visit = True
 
-# 参数名称映射（带HTML下标格式，用于第二部分的表格）
+# 参数名称映射（保持不变）
 PARAM_DISPLAY_NAMES = {
     "e": "e",
     "wl": "w<sub>l</sub>",
@@ -505,8 +487,6 @@ PARAM_DISPLAY_NAMES = {
     "phicq": "φ<sub>cq</sub>",
     "Es": "E<sub>s</sub>"
 }
-
-# 参数名称映射（LaTeX格式，用于图表标题和轴标签）
 PARAM_LATEX_NAMES = {
     "e": "e",
     "wl": "$w_{l}$",
@@ -515,8 +495,6 @@ PARAM_LATEX_NAMES = {
     "phicq": "$\\varphi_{cq}$",
     "Es": "$E_{s}$"
 }
-
-# 参数名称映射（带_下标格式，用于第三部分的选择框）
 PARAM_UNDERSCORE_NAMES = {
     "e": "e",
     "wl": "w_l",
@@ -526,35 +504,23 @@ PARAM_UNDERSCORE_NAMES = {
     "Es": "E_s"
 }
 
-# 辅助函数：获取HTML显示名称（用于第二部分的表格）
 def get_display_name(param):
     return PARAM_DISPLAY_NAMES.get(param, param)
-
-# 辅助函数：获取_下标显示名称（用于第三部分的选择框和标签）
 def get_underscore_name(param):
     return PARAM_UNDERSCORE_NAMES.get(param, param)
-
-# 辅助函数：获取LaTeX名称（用于图表）
 def get_latex_name(param):
     return PARAM_LATEX_NAMES.get(param, param)
 
-# 辅助函数：将DataFrame转换为HTML表格（普通表格）
 def df_to_html_table(df, escape_html=False):
-    """将DataFrame转换为HTML表格"""
     html = '<table class="custom-table">'
-    
-    # 表头
     html += '<thead><tr>'
     for col in df.columns:
         html += f'<th>{col}</th>'
-    html += '</tr></thead>'
-    
-    # 表体
+    html += '<tr></thead>'
     html += '<tbody>'
     for _, row in df.iterrows():
         html += '<tr>'
         for val in row:
-            # 如果不需要转义，且值是字符串，直接插入
             if escape_html:
                 import html as html_module
                 val = html_module.escape(str(val))
@@ -562,43 +528,31 @@ def df_to_html_table(df, escape_html=False):
         html += '</tr>'
     html += '</tbody>'
     html += '</table>'
-    
     return html
 
-# 辅助函数：将相关系数矩阵转换为HTML表格（带行列标题）
 def corr_matrix_to_html_table(corr_matrix, row_names, col_names):
-    """将相关系数矩阵转换为HTML表格，包含行列标题"""
     html = '<table class="corr-table">'
-    
-    # 表头（列标题）
-    html += '<thead><tr><th></th>'  # 左上角空白单元格
+    html += '<thead><tr><th></th>'
     for col_name in col_names:
         html += f'<th>{col_name}</th>'
     html += '</tr></thead>'
-    
-    # 表体
     html += '<tbody>'
     for i, row_name in enumerate(row_names):
         html += '<tr>'
-        html += f'<td>{row_name}</td>'  # 行标题
+        html += f'<td>{row_name}</td>'
         for j, val in enumerate(corr_matrix[i]):
             html += f'<td>{val:.4f}</td>'
         html += '</tr>'
     html += '</tbody>'
     html += '</table>'
-    
     return html
 
-# ---------- 加载 sgp 模型（缓存，无随机种子）----------
+# ---------- 加载 sgp 模型 ----------
 @st.cache_resource(show_spinner=False)
 def load_sgp_model():
-    """加载并初始化 sgp 模型（包含 MPD、ANN、HSS），完全随机自举"""
-    # 读取数据
     df = pd.read_csv("shanghai.csv")
     required = ["e", "wl", "wp", "ccq", "phicq", "Es"]
     df = df[required].dropna().copy()
-
-    # MPD/ANN 输入变量
     inputs_dict = {
         "e": VariableIO(name="e", unit="", decimals=3),
         "wl": VariableIO(name="wl", unit="%", decimals=1),
@@ -607,8 +561,6 @@ def load_sgp_model():
         "phicq": VariableIO(name="phicq", unit="°", decimals=1),
         "Es": VariableIO(name="Es", unit="MPa", decimals=2),
     }
-
-    # ANN 方程
     ann_equations = {
         "ccq": EquationIO(
             inputs=["e", "wl", "wp"],
@@ -623,7 +575,6 @@ def load_sgp_model():
             equation="1.6+9*tanh(-0.29*tanh(10.11*e-0.14*wl+0.07*wp-3.79)-0.17*tanh(4.67*e+0.32*wl-0.34*wp-8.36)+0.8*tanh(-0.9*e-0.01*wl+0.02*wp+1.91)+0.03)"
         ),
     }
-
     mpd_io = MPDIO(
         inputs=["log(e)", "log(wl)", "log(wp)", "log(ccq)", "log(phicq)", "log(Es)"],
         tolerance=0.001,
@@ -631,15 +582,13 @@ def load_sgp_model():
         optimizer="Scipy-LBFGSB",
         optimizer_options={"maxiter": 100, "maxfun": 1000},
     )
-
-    # ---------- HSS 模型参数定义（严格依据 shanghai-generate.py）----------
+    # HSS 模型参数定义（省略，保持原样）
     hss_inputs = [
         InputIO(name="e", default=0.7, minimum=0.4, maximum=1.6, decimals=3, singleStep=0.01, unit=""),
         InputIO(name="Es", default=10, minimum=1.5, maximum=25, decimals=2, singleStep=0.5, unit="MPa"),
         InputIO(name="sigma", default=10, minimum=0, maximum=500, decimals=2, singleStep=1.0, unit="kPa"),
         InputIO(name="ps", default=10, minimum=0.001, maximum=30, decimals=1, singleStep=1.0, unit="MPa"),
     ]
-
     hss_outputs = [
         VariableIO(name="Eoed", unit="MPa", decimals=2),
         VariableIO(name="E50", unit="MPa", decimals=2),
@@ -655,8 +604,6 @@ def load_sgp_model():
         VariableIO(name="nu", unit="", decimals=1),
         VariableIO(name="pref", unit="kPa", decimals=1),
     ]
-
-    # 公共更新（依赖 e, Es）
     base_updates = [
         HSSParametersIO(
             inputs=["e", "Es"],
@@ -667,8 +614,6 @@ def load_sgp_model():
             )
         )
     ]
-
-    # 黏土参数
     clay_base = [
         HSSParametersIO(
             inputs=["e"],
@@ -689,8 +634,6 @@ def load_sgp_model():
             )
         )
     ]
-
-    # 黏土更新
     clay_updates = base_updates + [
         HSSParametersIO(
             inputs=["e", "sigma", "ps"],
@@ -707,8 +650,6 @@ def load_sgp_model():
             ),
         ),
     ]
-
-    # 砂土基础参数
     sand_base = [
         HSSParametersIO(
             inputs=["e"],
@@ -727,8 +668,6 @@ def load_sgp_model():
             )
         )
     ]
-
-    # 砂土更新
     sand_updates = base_updates + [
         HSSParametersIO(
             inputs=["e", "sigma", "ps"],
@@ -746,7 +685,6 @@ def load_sgp_model():
             ),
         ),
     ]
-
     hss_io = HSSIO(
         inputs=hss_inputs,
         outputs=hss_outputs,
@@ -755,8 +693,6 @@ def load_sgp_model():
             "砂土": SoilParametersIO(parameters=sand_base, updates=sand_updates),
         },
     )
-
-    # 构建 DatabaseIO
     database = DatabaseIO(
         inputs=inputs_dict,
         data=df.values.tolist(),
@@ -765,27 +701,21 @@ def load_sgp_model():
         mpd=mpd_io,
         hss=hss_io,
     )
-
     sgp_io = SGPIO(database=database)
     model = Model(sgp_io)
-    _ = model.mpd.dist()  # 预计算 MPD 分布（自举随机）
-
+    _ = model.mpd.dist()
     return model
 
-# ---------- 导航函数 ----------
+# 导航函数
 def go_home():
     st.session_state.current_page = 'home'
     st.rerun()
-
 def go_page(page_name):
     st.session_state.current_page = page_name
     st.rerun()
 
-# ---------- 数据加载函数（用于首页）----------
 def load_data():
-    """智能加载数据"""
     local_file = "./shanghai-stats.csv"
-    
     if os.path.exists(local_file):
         try:
             df = pd.read_csv(local_file)
@@ -799,22 +729,13 @@ def load_data():
 
 # ==================== 页面路由 ====================
 if st.session_state.current_page == 'home':
-    # ========== 修改：使用 URL 参数控制首次访问记录 ==========
     if "_visited" not in st.query_params:
-        # 新会话（无 _visited 参数），记录访问
         record_visit_db()
-        # 设置标记，避免本会话内重复记录
         st.query_params["_visited"] = "1"
-        st.rerun()  # 刷新页面，使参数生效
-    
-    # 获取统计数据
+        st.rerun()
     stats = get_stats_db()
-    
-    # 首页
     st.markdown('<h1 class="hero-title">🏗️ 上海岩土工程参数智能取值平台</h1>', unsafe_allow_html=True)
     st.markdown('<p class="hero-subtitle">基于上海地区工程地质数据的专业分析工具</p>', unsafe_allow_html=True)
-    
-    # 右上角统计面板
     st.markdown(f"""
     <div class="stats-corner">
         <div class="stats-corner-item">
@@ -827,12 +748,9 @@ if st.session_state.current_page == 'home':
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
     if not st.session_state.data_loaded:
         load_data()
-    
     col1, col2 = st.columns(2)
-    
     with col1:
         with st.container():
             st.markdown("""
@@ -844,7 +762,6 @@ if st.session_state.current_page == 'home':
             """, unsafe_allow_html=True)
             if st.button("进入参数分布", key="btn_dist", use_container_width=True):
                 go_page('distribution')
-        
         with st.container():
             st.markdown("""
             <div class="feature-card" style="margin-top: 0.5rem;">
@@ -855,7 +772,6 @@ if st.session_state.current_page == 'home':
             """, unsafe_allow_html=True)
             if st.button("进入参数预测", key="btn_pred", use_container_width=True):
                 go_page('prediction')
-    
     with col2:
         with st.container():
             st.markdown("""
@@ -867,7 +783,6 @@ if st.session_state.current_page == 'home':
             """, unsafe_allow_html=True)
             if st.button("进入多元分析", key="btn_multi", use_container_width=True):
                 go_page('multivariate')
-        
         with st.container():
             st.markdown("""
             <div class="feature-card" style="margin-top: 0.5rem;">
@@ -879,41 +794,26 @@ if st.session_state.current_page == 'home':
             if st.button("进入HSS模型", key="btn_hss", use_container_width=True):
                 go_page('hss')
 
-# ==================== 参数分布页面（优化标注位置，修复 opacity 错误）====================
+# ==================== 参数分布页面 ====================
 elif st.session_state.current_page == 'distribution':
     if st.button("← 返回首页", key="back_dist"):
         go_home()
-    
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">📊 上海规范推荐地层参数分布</h1>
         <p class="page-subtitle">基于《上海市地基基础设计标准》（DGJ08-11-2018）的地层参数统计</p>
     </div>
     """, unsafe_allow_html=True)
-    
     if not st.session_state.data_loaded:
         st.error("请先返回首页加载数据")
         st.stop()
-    
     df = st.session_state.df
-    
-    # 删除全为空的行（底部空白行）
     df_clean = df.dropna(how='all')
-    
     st.subheader("📋 地层参数数据表")
     st.dataframe(df_clean, use_container_width=True, height=600)
-    
-    # 添加总表下载按钮
     csv = df_clean.to_csv(index=False)
-    st.download_button(
-        label="📥 下载完整数据表",
-        data=csv,
-        file_name="shanghai-stats.csv",
-        mime="text/csv"
-    )
-    
+    st.download_button(label="📥 下载完整数据表", data=csv, file_name="shanghai-stats.csv", mime="text/csv")
     numeric_cols = df_clean.select_dtypes(include=[np.number]).columns.tolist()
-    
     if numeric_cols:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -924,14 +824,10 @@ elif st.session_state.current_page == 'distribution':
             st.metric("参数均值", f"{df_clean[numeric_cols[0]].mean():.2f}" if numeric_cols else "N/A")
         with col4:
             st.metric("标准差", f"{df_clean[numeric_cols[0]].std():.2f}" if numeric_cols else "N/A")
-        
         st.dataframe(df_clean[numeric_cols].describe().round(2), use_container_width=True)
-    
-    # ========== 范围条形图可视化（支持所有参数列，文本内部左侧，误差线半透明）==========
+    # 范围条形图可视化（略，保持原样）
     st.markdown("---")
     st.subheader("📊 地层参数范围可视化")
-    
-    # 获取所有可能包含范围数据的列（排除明显非数值的列）
     exclude_keywords = ['序号', '名称', '层号', '土层', 'soil', 'layer', '编号']
     param_columns = {}
     for col in df_clean.columns:
@@ -939,11 +835,9 @@ elif st.session_state.current_page == 'distribution':
             continue
         if df_clean[col].astype(str).str.contains('~').any() or pd.to_numeric(df_clean[col], errors='coerce').notna().any():
             param_columns[col] = col
-    
     if not param_columns:
         st.warning("未找到可识别的参数列，请检查数据格式。")
     else:
-        # 提取土层标识：优先使用“土层序号”和“土层名称”
         if '土层序号' in df_clean.columns:
             if '土层名称' in df_clean.columns:
                 soil_labels = df_clean['土层序号'].astype(str) + " " + df_clean['土层名称'].fillna('')
@@ -951,15 +845,8 @@ elif st.session_state.current_page == 'distribution':
                 soil_labels = df_clean['土层序号'].astype(str)
         else:
             soil_labels = df_clean.iloc[:, 0].astype(str)
-        
         selected_col = st.selectbox("选择参数", list(param_columns.keys()))
-        
-        # 解析范围字符串
-        min_vals = []
-        max_vals = []
-        mean_vals = []
-        valid_indices = []
-        
+        min_vals, max_vals, mean_vals, valid_indices = [], [], [], []
         for idx, val_str in enumerate(df_clean[selected_col]):
             if pd.isna(val_str) or val_str == "":
                 continue
@@ -971,87 +858,53 @@ elif st.session_state.current_page == 'distribution':
                     mean_val = (min_val + max_val) / 2
                 else:
                     min_val = max_val = mean_val = float(val_str)
-                min_vals.append(min_val)
-                max_vals.append(max_val)
-                mean_vals.append(mean_val)
-                valid_indices.append(idx)
+                min_vals.append(min_val); max_vals.append(max_val); mean_vals.append(mean_val); valid_indices.append(idx)
             except:
                 continue
-        
         if not min_vals:
-            st.error(f"无法解析参数 '{selected_col}' 的数据，请检查数据格式（应为数值或 'min~max' 形式）。")
+            st.error(f"无法解析参数 '{selected_col}' 的数据，请检查数据格式。")
         else:
             valid_labels = [soil_labels[i] for i in valid_indices]
-            
             fig = go.Figure()
             fig.add_trace(go.Bar(
-                x=mean_vals,
-                y=valid_labels,
-                orientation='h',
-                marker_color='#3b82f6',
-                error_x=dict(
-                    type='data',
-                    symmetric=False,
-                    array=[max_vals[i] - mean_vals[i] for i in range(len(mean_vals))],
-                    arrayminus=[mean_vals[i] - min_vals[i] for i in range(len(mean_vals))],
-                    visible=True,
-                    color='rgba(128,128,128,0.6)',  # 半透明灰色
-                    thickness=2
-                ),
-                name='均值 (范围)',
+                x=mean_vals, y=valid_labels, orientation='h', marker_color='#3b82f6',
+                error_x=dict(type='data', symmetric=False, array=[max_vals[i]-mean_vals[i] for i in range(len(mean_vals))],
+                             arrayminus=[mean_vals[i]-min_vals[i] for i in range(len(mean_vals))], visible=True, color='rgba(128,128,128,0.6)', thickness=2),
                 text=[f"{mean_vals[i]:.2f} [{min_vals[i]:.2f}~{max_vals[i]:.2f}]" for i in range(len(mean_vals))],
-                textposition='inside',
-                insidetextanchor='start',
-                textfont=dict(size=10, color='white'),
-                cliponaxis=False
+                textposition='inside', insidetextanchor='start', textfont=dict(size=10, color='white'), cliponaxis=False
             ))
-            
-            fig.update_layout(
-                title=f"{selected_col} 在各土层中的分布范围",
-                xaxis_title=selected_col,
-                yaxis_title="地层",
-                height=max(400, len(valid_labels) * 35),
-                margin=dict(l=10, r=10, t=50, b=10),
-                showlegend=False,
-                yaxis=dict(autorange="reversed", tickfont=dict(size=10)),
-                xaxis=dict(title_font=dict(size=12))
-            )
-            
+            fig.update_layout(title=f"{selected_col} 在各土层中的分布范围", xaxis_title=selected_col, yaxis_title="地层",
+                              height=max(400, len(valid_labels)*35), margin=dict(l=10, r=10, t=50, b=10),
+                              showlegend=False, yaxis=dict(autorange="reversed", tickfont=dict(size=10)),
+                              xaxis=dict(title_font=dict(size=12)))
             st.plotly_chart(fig, use_container_width=True)
-            
             with st.expander("查看详细数据"):
-                df_range = pd.DataFrame({
-                    "地层": valid_labels,
-                    "最小值": [f"{v:.3f}" for v in min_vals],
-                    "最大值": [f"{v:.3f}" for v in max_vals],
-                    "均值": [f"{v:.3f}" for v in mean_vals]
-                })
+                df_range = pd.DataFrame({"地层": valid_labels, "最小值": [f"{v:.3f}" for v in min_vals],
+                                         "最大值": [f"{v:.3f}" for v in max_vals], "均值": [f"{v:.3f}" for v in mean_vals]})
                 st.dataframe(df_range, use_container_width=True)
+    # ========== 第一部分参考文献 ==========
+    st.markdown("---")
+    st.markdown("**参考文献**")
+    st.markdown("[1] 上海市城乡建设和交通委员会. DGJ08-11-2018 上海市地基基础设计标准[S]. 上海: 2018.")
 
 # ==================== 多元概率分布分析页面 ====================
 elif st.session_state.current_page == 'multivariate':
     if st.button("← 返回首页", key="back_multi"):
         go_home()
-    
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">📈 多元概率分布分析</h1>
         <p class="page-subtitle">上海地区土体参数（孔隙比e、液限w<sub>l</sub>、塑限w<sub>p</sub>、固结快剪粘聚力c<sub>cq</sub>、固结快剪内摩擦角φ<sub>cq</sub>、压缩模量E<sub>s</sub>）参数统计、Johnson分布参数及对数相关系数矩阵</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # 确保模型已加载
     if 'model' not in st.session_state:
         with st.spinner("正在加载..."):
             st.session_state.model = load_sgp_model()
     model = st.session_state.model
-    
-    # 从原始数据中提取六个参数
     params = ["e", "wl", "wp", "ccq", "phicq", "Es"]
     df_raw = pd.read_csv("shanghai.csv")
     df = df_raw[params].dropna()
-    
-    # ---------- 1. 参数统计表 ----------
+    # 参数统计表
     st.subheader("📊 参数统计表")
     stats_data = []
     for col in params:
@@ -1060,92 +913,57 @@ elif st.session_state.current_page == 'multivariate':
         max_val = df[col].max()
         std_val = df[col].std()
         cov_val = std_val / mean_val if mean_val != 0 else np.nan
-        
         if col == "e":
-            mean_str = f"{mean_val:.3f}"
-            min_str = f"{min_val:.3f}"
-            max_str = f"{max_val:.3f}"
+            mean_str, min_str, max_str = f"{mean_val:.3f}", f"{min_val:.3f}", f"{max_val:.3f}"
         elif col == "Es":
-            mean_str = f"{mean_val:.2f}"
-            min_str = f"{min_val:.2f}"
-            max_str = f"{max_val:.2f}"
+            mean_str, min_str, max_str = f"{mean_val:.2f}", f"{min_val:.2f}", f"{max_val:.2f}"
         else:
-            mean_str = f"{mean_val:.1f}"
-            min_str = f"{min_val:.1f}"
-            max_str = f"{max_val:.1f}"
-        
-        stats_data.append({
-            "参数": get_display_name(col),
-            "均值": mean_str,
-            "最小值": min_str,
-            "最大值": max_str,
-            "标准差": f"{std_val:.4f}",
-            "变异系数": f"{cov_val:.4f}"
-        })
+            mean_str, min_str, max_str = f"{mean_val:.1f}", f"{min_val:.1f}", f"{max_val:.1f}"
+        stats_data.append({"参数": get_display_name(col), "均值": mean_str, "最小值": min_str,
+                           "最大值": max_str, "标准差": f"{std_val:.4f}", "变异系数": f"{cov_val:.4f}"})
     df_stats = pd.DataFrame(stats_data)
     st.markdown(df_to_html_table(df_stats), unsafe_allow_html=True)
-    
-    # ---------- 2. 约翰逊分布参数表 ----------
+    # 约翰逊分布参数表
     st.subheader("📈 约翰逊分布参数（对数空间）")
     dist_result = model.mpd.dist()
-    
     log_vars = ["log(e)", "log(wl)", "log(wp)", "log(ccq)", "log(phicq)", "log(Es)"]
     df_log = pd.DataFrame()
     for var, log_var in zip(params, log_vars):
         df_log[log_var] = np.log(df[var])
-    
     with st.spinner("正在加载..."):
-        opt_results, _, _ = model.mpd.optimize(
-            df_log,
-            method=model.io.database.mpd.optimizer,
-            **model.io.database.mpd.optimizer_options
-        )
-    
+        opt_results, _, _ = model.mpd.optimize(df_log, method=model.io.database.mpd.optimizer,
+                                               **model.io.database.mpd.optimizer_options)
     johnson_data = []
     for var, log_var in zip(params, log_vars):
         d = dist_result.dists[var]
         z_val = opt_results[log_var].x[0]
-        if var == "e":
-            log_display = "log(e)"
-        elif var == "wl":
-            log_display = "log(w<sub>l</sub>)"
-        elif var == "wp":
-            log_display = "log(w<sub>p</sub>)"
-        elif var == "ccq":
-            log_display = "log(c<sub>cq</sub>)"
-        elif var == "phicq":
-            log_display = "log(φ<sub>cq</sub>)"
-        elif var == "Es":
-            log_display = "log(E<sub>s</sub>)"
-        else:
-            log_display = log_var
-        
+        if var == "e": log_display = "log(e)"
+        elif var == "wl": log_display = "log(w<sub>l</sub>)"
+        elif var == "wp": log_display = "log(w<sub>p</sub>)"
+        elif var == "ccq": log_display = "log(c<sub>cq</sub>)"
+        elif var == "phicq": log_display = "log(φ<sub>cq</sub>)"
+        elif var == "Es": log_display = "log(E<sub>s</sub>)"
+        else: log_display = log_var
         p_val_str = f"{d.pvalue:.3g}"
-        johnson_data.append({
-            "参数": log_display,
-            "类型": d.type.upper(),
-            "aX": f"{d.aX:.4f}",
-            "bX": f"{d.bX:.4f}",
-            "aY": f"{d.aY:.4f}",
-            "bY": f"{d.bY:.4f}",
-            "z": f"{z_val:.4f}",
-            "D": f"{d.statistic:.4f}",
-            "p": p_val_str
-        })
+        johnson_data.append({"参数": log_display, "类型": d.type.upper(), "aX": f"{d.aX:.4f}", "bX": f"{d.bX:.4f}",
+                             "aY": f"{d.aY:.4f}", "bY": f"{d.bY:.4f}", "z": f"{z_val:.4f}",
+                             "D": f"{d.statistic:.4f}", "p": p_val_str})
     df_johnson = pd.DataFrame(johnson_data)
     st.markdown(df_to_html_table(df_johnson), unsafe_allow_html=True)
-    
-    # ---------- 3. 对数相关系数表 ----------
+    # 对数相关系数表
     st.subheader("🔗 对数相关系数矩阵")
     corr_matrix = dist_result.C
     log_vars_display = ["log(e)", "log(w<sub>l</sub>)", "log(w<sub>p</sub>)", "log(c<sub>cq</sub>)", "log(φ<sub>cq</sub>)", "log(E<sub>s</sub>)"]
     st.markdown(corr_matrix_to_html_table(corr_matrix, log_vars_display, log_vars_display), unsafe_allow_html=True)
+    # ========== 第二部分参考文献 ==========
+    st.markdown("---")
+    st.markdown("**参考文献**")
+    st.markdown("[1] 刘航宇. 上海地区典型土体参数数据库与参数取值方法研究[D]. 同济大学, 2024.")
 
 # ==================== 土体参数智能预测页面 ====================
 elif st.session_state.current_page == 'prediction':
     if st.button("← 返回首页", key="back_pred"):
         go_home()
-    
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">🔮 土体参数智能预测</h1>
@@ -1157,21 +975,15 @@ elif st.session_state.current_page == 'prediction':
         </p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # 延迟加载模型
     if 'model' not in st.session_state:
         with st.spinner("正在加载..."):
             st.session_state.model = load_sgp_model()
     model = st.session_state.model
     mpd = model.mpd
-    
-    # 数据统计（仅用于默认值）
     df_raw = pd.read_csv("shanghai.csv")
     original_vars = ["e", "wl", "wp", "ccq", "phicq", "Es"]
     df = df_raw[original_vars].dropna()
     sample_means = df.mean().to_dict()
-    
-    # 参数中英文对照（使用_下标，用于第三部分的选择框和标签，但ANN模式下我们会用HTML标签覆盖）
     param_names_zh = {
         "e": "孔隙比 e",
         "wl": "液限 w_l (%)",
@@ -1180,18 +992,10 @@ elif st.session_state.current_page == 'prediction':
         "phicq": "固结快剪内摩擦角 φ_cq (°)",
         "Es": "压缩模量 E_s (MPa)"
     }
-    
-    # 创建两列布局：左侧参数输入，右侧结果展示
     col_left, col_right = st.columns([1, 2])
-    
     with col_left:
         st.subheader("⚙️ 参数设置")
-        mode = st.radio(
-            "选择预测模式",
-            ["多元概率分布预测 (MPD)", "ANN预测"],
-            index=0
-        )
-        
+        mode = st.radio("选择预测模式", ["多元概率分布预测 (MPD)", "ANN预测"], index=0)
         if mode == "ANN预测":
             st.info("ANN预测需要输入孔隙比 e、液限 w_l、塑限 w_p")
             input_vars = ["e", "wl", "wp"]
@@ -1205,34 +1009,19 @@ elif st.session_state.current_page == 'prediction':
                 input_values["wp"] = wp_val
             target_var = None
         else:
-            input_vars = st.multiselect(
-                "已知参数", 
-                original_vars, 
-                default=[],
-                format_func=lambda x: param_names_zh[x]
-            )
+            input_vars = st.multiselect("已知参数", original_vars, default=[], format_func=lambda x: param_names_zh[x])
             input_values = {}
             for var in input_vars:
                 mean_val = sample_means[var]
-                val = st.number_input(
-                    param_names_zh[var], value=float(mean_val), format="%.3f", key=f"mpd_{var}"
-                )
+                val = st.number_input(param_names_zh[var], value=float(mean_val), format="%.3f", key=f"mpd_{var}")
                 input_values[var] = val
-            
             target_options = [v for v in original_vars if v not in input_vars]
             if not target_options:
                 st.warning("请至少保留一个参数作为目标参数")
                 target_var = None
             else:
-                target_var = st.selectbox(
-                    "目标参数", 
-                    target_options, 
-                    index=0,
-                    format_func=lambda x: param_names_zh[x]
-                )
-        
+                target_var = st.selectbox("目标参数", target_options, index=0, format_func=lambda x: param_names_zh[x])
         calc_btn = st.button("🚀 计算", type="primary", use_container_width=True)
-    
     with col_right:
         if calc_btn:
             if mode == "多元概率分布预测 (MPD)" and target_var is not None:
@@ -1240,104 +1029,68 @@ elif st.session_state.current_page == 'prediction':
                 with st.spinner("正在加载..."):
                     result_dict = mpd.predict(**input_values)
                     res = result_dict[target_var]
-
                 x_uncond = np.asarray(res.unconditioning.y0)
                 pdf_uncond = np.asarray(res.unconditioning.pdf)
                 lb_uncond = res.unconditioning.lb
                 ub_uncond = res.unconditioning.ub
                 mean_uncond_display = res.unconditioning.mean
                 pdf_at_mean_uncond = np.interp(mean_uncond_display, x_uncond, pdf_uncond)
-
                 x_cond = np.asarray(res.conditioning.y0)
                 pdf_cond = np.asarray(res.conditioning.pdf)
                 lb_cond = res.conditioning.lb
                 ub_cond = res.conditioning.ub
                 mean_cond_display = res.conditioning.mean
                 pdf_at_mean_cond = np.interp(mean_cond_display, x_cond, pdf_cond)
-
                 target_latex = get_latex_name(target_var)
                 target_html = get_display_name(target_var)
-
                 st.markdown(f"""
-                <div style="
-                    background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
-                    color: white;
-                    padding: 12px 20px;
-                    border-radius: 10px;
-                    margin-bottom: 15px;
-                    text-align: center;
-                    font-size: 1.3rem;
-                    font-weight: 600;
-                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <div style="background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 12px 20px; border-radius: 10px; margin-bottom: 15px; text-align: center; font-size: 1.3rem; font-weight: 600; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
                     🎯 目标参数：{target_html}
                 </div>
                 """, unsafe_allow_html=True)
-
                 fig, ax = plt.subplots(figsize=(10, 6))
                 ax.plot(x_uncond, pdf_uncond, 'k--', label="无条件 PDF")
                 mask_u = (x_uncond >= lb_uncond) & (x_uncond <= ub_uncond)
                 ax.fill_between(x_uncond[mask_u], 0, pdf_uncond[mask_u], color='k', alpha=0.1,
                                 label=f"无条件 95% CI (lb = {lb_uncond:.2f}, ub = {ub_uncond:.2f}, mean = {mean_uncond_display:.2f})")
-                ax.plot([mean_uncond_display, mean_uncond_display], [0, pdf_at_mean_uncond],
-                        'k--', alpha=0.5, label=f"无条件均值 = {mean_uncond_display:.2f}")
-
+                ax.plot([mean_uncond_display, mean_uncond_display], [0, pdf_at_mean_uncond], 'k--', alpha=0.5, label=f"无条件均值 = {mean_uncond_display:.2f}")
                 ax.plot(x_cond, pdf_cond, 'r-', label="条件 PDF")
                 mask_c = (x_cond >= lb_cond) & (x_cond <= ub_cond)
                 ax.fill_between(x_cond[mask_c], 0, pdf_cond[mask_c], color='r', alpha=0.1,
                                 label=f"条件 95% CI (lb = {lb_cond:.2f}, ub = {ub_cond:.2f}, mean = {mean_cond_display:.2f})")
-                ax.plot([mean_cond_display, mean_cond_display], [0, pdf_at_mean_cond],
-                        'r-', alpha=0.5, label=f"有条件均值 = {mean_cond_display:.2f}")
-
+                ax.plot([mean_cond_display, mean_cond_display], [0, pdf_at_mean_cond], 'r-', alpha=0.5, label=f"有条件均值 = {mean_cond_display:.2f}")
                 units = {"e": "", "wl": "%", "wp": "%", "ccq": "kPa", "phicq": "°", "Es": "MPa"}
                 ax.set_xlabel(f"{target_latex} ({units[target_var]})")
                 ax.set_ylabel("概率密度")
                 ax.set_title(f"{target_latex} 的概率密度函数 (PDF)")
                 ax.legend(loc="upper right")
                 ax.grid(linestyle=':', alpha=0.6)
-
                 st.pyplot(fig)
-
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("""
-                    <div style="
-                        background-color: #f3f4f6;
-                        border-left: 4px solid #6b7280;
-                        padding: 15px;
-                        border-radius: 8px;
-                        margin-top: 10px;">
+                    <div style="background-color: #f3f4f6; border-left: 4px solid #6b7280; padding: 15px; border-radius: 8px; margin-top: 10px;">
                         <h4 style="margin: 0 0 10px 0; color: #374151; font-size: 1.1rem;">📊 无条件分布</h4>
                         <p style="margin: 5px 0; color: #4b5563;"><strong>均值:</strong> {:.2f}</p>
                         <p style="margin: 5px 0; color: #4b5563;"><strong>95% 置信区间:</strong> [{:.2f}, {:.2f}]</p>
                     </div>
                     """.format(mean_uncond_display, lb_uncond, ub_uncond), unsafe_allow_html=True)
-
                 with col2:
                     if input_values:
-                        cond_items = []
-                        for k, v in input_values.items():
-                            cond_items.append(f"{get_display_name(k)}={v:.3f}")
+                        cond_items = [f"{get_display_name(k)}={v:.3f}" for k, v in input_values.items()]
                         cond_str = ", ".join(cond_items)
                     else:
                         cond_str = "无"
-
                     st.markdown("""
-                    <div style="
-                        background-color: #fef2f2;
-                        border-left: 4px solid #ef4444;
-                        padding: 15px;
-                        border-radius: 8px;
-                        margin-top: 10px;">
+                    <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; border-radius: 8px; margin-top: 10px;">
                         <h4 style="margin: 0 0 10px 0; color: #991b1b; font-size: 1.1rem;">🎯 条件分布</h4>
                         <p style="margin: 5px 0; color: #7f1d1d;"><strong>条件:</strong> {}</p>
                         <p style="margin: 5px 0; color: #7f1d1d;"><strong>均值:</strong> {:.2f}</p>
                         <p style="margin: 5px 0; color: #7f1d1d;"><strong>95% 置信区间:</strong> [{:.2f}, {:.2f}]</p>
                     </div>
                     """.format(cond_str, mean_cond_display, lb_cond, ub_cond), unsafe_allow_html=True)
-            
             elif mode == "多元概率分布预测 (MPD)" and target_var is None:
                 st.error("无法预测：请至少保留一个参数作为目标参数")
-            
             else:  # ANN预测
                 record_calculation_db()
                 with st.spinner("正在加载..."):
@@ -1346,90 +1099,56 @@ elif st.session_state.current_page == 'prediction':
                     except Exception as e:
                         st.error(f"ANN 预测失败: {e}")
                         ann_results = {}
-                
                 if ann_results:
                     st.subheader("🧠 ANN 预测结果")
                     ann_data = []
                     for param, value in ann_results.items():
                         units_map = {"ccq": "kPa", "phicq": "°", "Es": "MPa"}
-                        ann_data.append({
-                            "参数": get_display_name(param),
-                            "预测值": f"{value:.2f}",
-                            "单位": units_map.get(param, "")
-                        })
+                        ann_data.append({"参数": get_display_name(param), "预测值": f"{value:.2f}", "单位": units_map.get(param, "")})
                     df_ann = pd.DataFrame(ann_data)
                     st.markdown(df_to_html_table(df_ann), unsafe_allow_html=True)
                 else:
                     st.warning("未能获取 ANN 预测结果，请检查输入参数是否包含 e、w_l、w_p（ANN 的输入要求）")
         else:
             st.info("👈 请在左侧设置参数后点击「计算」")
+    # ========== 第三部分参考文献 ==========
+    st.markdown("---")
+    st.markdown("**参考文献**")
+    st.markdown("[1] 刘航宇. 上海地区典型土体参数数据库与参数取值方法研究[D]. 同济大学, 2024.")
 
 # ==================== HSS模型参数计算页面 ====================
 elif st.session_state.current_page == 'hss':
     if st.button("← 返回首页", key="back_hss"):
         go_home()
-    
     st.markdown("""
     <div class="page-header">
         <h1 class="page-title">🧱 HSS模型参数计算</h1>
         <p class="page-subtitle">可根据孔隙比e（必选）、压缩模量E<sub>s</sub>、有效竖向应力σ'、比贯入阻力p<sub>s</sub>计算小应变硬化（HSS）模型参数（基于上海地区经验公式）</p>
     </div>
     """, unsafe_allow_html=True)
-    
-    # 延迟加载模型
     if 'model' not in st.session_state:
         with st.spinner("正在加载..."):
             st.session_state.model = load_sgp_model()
     model = st.session_state.model
     hss = model.io.database.hss
-    
-    # 参数含义字典（更新为带下标的名称，且 φ' 和 c'）
     param_meaning = {
-        "Eoed": "切线模量（参考应力下）",
-        "E50": "割线模量（参考应力下）",
-        "Eur": "加卸载模量（参考应力下）",
-        "phi": "φ' 有效内摩擦角",
-        "c": "c' 有效粘聚力",
-        "psi": "剪胀角",
-        "Rf": "破坏比",
-        "K0": "初始静止侧压力系数",
-        "G0": "动剪切初始模量（参考应力下）",
-        "m": "模量应力水平相关幂指数",
-        "gamma07": "阈值剪应变",
-        "nu": "泊松比",
-        "pref": "参考应力",
+        "Eoed": "切线模量（参考应力下）", "E50": "割线模量（参考应力下）", "Eur": "加卸载模量（参考应力下）",
+        "phi": "φ' 有效内摩擦角", "c": "c' 有效粘聚力", "psi": "剪胀角", "Rf": "破坏比",
+        "K0": "初始静止侧压力系数", "G0": "动剪切初始模量（参考应力下）", "m": "模量应力水平相关幂指数",
+        "gamma07": "阈值剪应变", "nu": "泊松比", "pref": "参考应力",
     }
-    
-    # 参数显示名称映射（HTML下标格式）
     param_display_names = {
-        "Eoed": "E<sub>oed</sub>",
-        "E50": "E<sub>50</sub>",
-        "Eur": "E<sub>ur</sub>",
-        "phi": "φ'",
-        "c": "c'",
-        "psi": "ψ",
-        "Rf": "R<sub>f</sub>",
-        "K0": "K<sub>0</sub>",
-        "G0": "G<sub>0</sub>",
-        "m": "m",
-        "gamma07": "γ<sub>0.7</sub>",
-        "nu": "ν",
-        "pref": "p<sub>ref</sub>",
+        "Eoed": "E<sub>oed</sub>", "E50": "E<sub>50</sub>", "Eur": "E<sub>ur</sub>", "phi": "φ'", "c": "c'",
+        "psi": "ψ", "Rf": "R<sub>f</sub>", "K0": "K<sub>0</sub>", "G0": "G<sub>0</sub>", "m": "m",
+        "gamma07": "γ<sub>0.7</sub>", "nu": "ν", "pref": "p<sub>ref</sub>",
     }
-    
-    # 两列布局
     col_left, col_right = st.columns([1, 2])
-    
     with col_left:
         st.subheader("⚙️ 参数设置")
         soil_type = st.selectbox("土体类型", ["黏土", "砂土"], index=0)
-        
         st.markdown("#### 输入参数设置")
         st.markdown("（孔隙比 e 为必选，其余参数可自由启用/禁用）")
-        
         input_dict = {}
-        
-        # e 强制启用（复选框禁用）
         st.markdown("**孔隙比 e**")
         col_check, col_input = st.columns([0.2, 0.8])
         with col_check:
@@ -1437,8 +1156,6 @@ elif st.session_state.current_page == 'hss':
         with col_input:
             e_val = st.number_input("", value=0.7, format="%.3f", key="hss_e", label_visibility="collapsed")
         input_dict["e"] = e_val
-        
-        # Es - 默认不启用
         st.markdown("**压缩模量 E<sub>s</sub> (MPa)**", unsafe_allow_html=True)
         col_check, col_input = st.columns([0.2, 0.8])
         with col_check:
@@ -1447,8 +1164,6 @@ elif st.session_state.current_page == 'hss':
             Es_val = st.number_input("", value=10.0, format="%.2f", key="hss_Es", disabled=not enable_Es, label_visibility="collapsed")
         if enable_Es:
             input_dict["Es"] = Es_val
-        
-        # sigma - 默认不启用
         st.markdown("**有效竖向应力 σ' (kPa)**")
         col_check, col_input = st.columns([0.2, 0.8])
         with col_check:
@@ -1457,8 +1172,6 @@ elif st.session_state.current_page == 'hss':
             sigma_val = st.number_input("", value=100.0, format="%.2f", key="hss_sigma", disabled=not enable_sigma, label_visibility="collapsed")
         if enable_sigma:
             input_dict["sigma"] = sigma_val
-        
-        # ps - 默认不启用
         st.markdown("**比贯入阻力 p<sub>s</sub> (MPa)**", unsafe_allow_html=True)
         col_check, col_input = st.columns([0.2, 0.8])
         with col_check:
@@ -1467,9 +1180,7 @@ elif st.session_state.current_page == 'hss':
             ps_val = st.number_input("", value=10.0, format="%.1f", key="hss_ps", disabled=not enable_ps, label_visibility="collapsed")
         if enable_ps:
             input_dict["ps"] = ps_val
-        
         calc_btn = st.button("🚀 计算 HSS 参数", type="primary", use_container_width=True)
-    
     with col_right:
         if calc_btn:
             record_calculation_db()
@@ -1479,31 +1190,18 @@ elif st.session_state.current_page == 'hss':
                 except Exception as e:
                     st.error(f"HSS 预测失败: {e}")
                     equations, outputs = {}, {}
-            
             if outputs:
                 if 'c' in outputs and outputs['c'] < 0:
                     outputs['c'] = 0.0
-                
                 st.subheader("📐 HSS 模型参数")
                 data = []
                 for name, value in outputs.items():
                     unit = next((out.unit for out in hss.outputs if out.name == name), "")
                     meaning = param_meaning.get(name, "")
                     display_name = param_display_names.get(name, name)
-                    
                     if name == "gamma07":
                         val_str = f"{value:.2e}"
-                    elif name == "phi":
-                        val_str = f"{value:.1f}"
-                    elif name == "c":
-                        val_str = f"{value:.1f}"
-                    elif name == "psi":
-                        val_str = f"{value:.1f}"
-                    elif name == "G0":
-                        val_str = f"{value:.1f}"
-                    elif name == "nu":
-                        val_str = f"{value:.1f}"
-                    elif name == "pref":
+                    elif name in ["phi", "c", "psi", "G0", "nu", "pref"]:
                         val_str = f"{value:.1f}"
                     elif name == "m":
                         val_str = f"{value:.2f}"
@@ -1511,16 +1209,16 @@ elif st.session_state.current_page == 'hss':
                         val_str = f"{value:.2f}"
                     else:
                         val_str = f"{value:.2f}"
-                    
-                    data.append({
-                        "参数": display_name,
-                        "含义": meaning,
-                        "预测值": val_str,
-                        "单位": unit,
-                    })
+                    data.append({"参数": display_name, "含义": meaning, "预测值": val_str, "单位": unit})
                 df_hss = pd.DataFrame(data)
                 st.markdown(df_to_html_table(df_hss, escape_html=False), unsafe_allow_html=True)
             else:
                 st.warning("未能获取 HSS 预测结果，请检查输入参数。")
         else:
             st.info("👈 请在左侧设置参数后点击「计算」")
+    # ========== 第四部分参考文献 ==========
+    st.markdown("---")
+    st.markdown("**参考文献**")
+    st.markdown("[1] 顾晓强, 吴瑞拓, 梁发云等. 上海土体小应变硬化模型整套参数取值方法及工程验证[J]. 岩土力学, 2021, 42(3): 833-845.")
+    st.markdown("[2] 刘航宇. 上海地区典型土体参数数据库与参数取值方法研究[D]. 同济大学, 2024.")
+    st.markdown("[3] 刘航宇, 顾晓强, 胡靖. 基于ANN的上海土体HSS模型模量参数研究[J]. 地下空间与工程学报, 2025, 21(03): 800-804.")
