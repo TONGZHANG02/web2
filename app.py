@@ -1252,7 +1252,7 @@ elif st.session_state.current_page == 'hss':
                 if 'sigma' in input_dict:
                     st.markdown("""
                     <div style="background-color: #f0f8ff; border-left: 4px solid #3b82f6; padding: 10px; margin-top: 15px; font-size: 0.85rem; border-radius: 8px;">
-                        <strong>※ 说明：</strong><br>
+                        <strong>* 说明：</strong><br>
                         大量试验表明土体的 G<sub>0</sub> 值由平均有效应力 p′ 决定，而不是由水平向有效围压 σ<sub>3</sub>' 决定。因此，当在 PLAXIS 软件中输入 G<sub>0</sub>(参考应力下)时，计算的 G<sub>0</sub> 值会偏小，尤其是 K<sub>0</sub> 比较小和 m 值比较大时。为解决该问题，建议在 PLAXIS 软件输入 G<sub>0</sub>(参考应力下) 的值时应改为该 PLAXIS 输入值从而进行修正，详情可参考文献[1]。
                     </div>
                     """, unsafe_allow_html=True)
