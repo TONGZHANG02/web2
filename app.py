@@ -1195,6 +1195,8 @@ elif st.session_state.current_page == 'hss':
                     outputs['c'] = 0.0
                 st.subheader("📐 HSS 模型参数")
                 data = []
+                # 记录原始 G0 值，以便后续计算
+                original_G0 = None
                 for name, value in outputs.items():
                     unit = next((out.unit for out in hss.outputs if out.name == name), "")
                     meaning = param_meaning.get(name, "")
@@ -1210,8 +1212,60 @@ elif st.session_state.current_page == 'hss':
                     else:
                         val_str = f"{value:.2f}"
                     data.append({"参数": display_name, "含义": meaning, "预测值": val_str, "单位": unit})
+                    if name == "G0":
+                        original_G0 = value
+                
+                # 计算修正后的 G0（PLAXIS 输入值）—— 仅当 sigma 被启用时
+                if 'sigma' in input_dict and original_G0 is not None:
+                    # 获取所需的参数
+                    phi_deg = outputs.get('phi', 0.0)
+                    c = outputs.get('c', 0.0)
+                    K0 = outputs.get('K0', 0.0)
+                    m = outputs.get('m', 0.0)
+                    sigma = input_dict['sigma']  # 单位 kPa
+                    # 角度转弧度
+                    phi_rad = np.radians(phi_deg)
+                    cos_phi = np.cos(phi_rad)
+                    sin_phi = np.sin(phi_rad)
+                    # 计算分子和分母
+                    numerator = c * cos_phi + ((1 + 2 * K0) / 3) * sin_phi * sigma
+                    denominator = c * cos_phi + K0 * sin_phi * sigma
+                    # 防止除零
+                    if denominator != 0:
+                        factor = numerator / denominator
+                        calibrated_G0 = original_G0 * (factor ** m)
+                    else:
+                        calibrated_G0 = float('nan')
+                    # 格式化输出（保留两位小数）
+                    calibrated_str = f"{calibrated_G0:.2f}" if not np.isnan(calibrated_G0) else "无法计算"
+                    # 在 G0 行之后插入新行
+                    # 找到 G0 行的位置
+                    insert_pos = None
+                    for i, item in enumerate(data):
+                        if item["参数"] == param_display_names["G0"]:
+                            insert_pos = i + 1
+                            break
+                    if insert_pos is not None:
+                        data.insert(insert_pos, {
+                            "参数": param_display_names["G0"],
+                            "含义": "动剪切初始模量PLAXIS输入值（参考应力下）*",
+                            "预测值": calibrated_str,
+                            "单位": "MPa"
+                        })
+                
                 df_hss = pd.DataFrame(data)
                 st.markdown(df_to_html_table(df_hss, escape_html=False), unsafe_allow_html=True)
+                
+                # 添加解释说明（仅当 sigma 被启用时显示，否则可显示提示）
+                if 'sigma' in input_dict:
+                    st.markdown("""
+                    <div style="background-color: #f0f8ff; border-left: 4px solid #3b82f6; padding: 10px; margin-top: 15px; font-size: 0.85rem; border-radius: 8px;">
+                        <strong>※ 说明：</strong><br>
+                        大量试验表明土体的 G<sub>0</sub> 值由平均有效应力 p′ 决定，而不是由水平向有效围压 σ<sub>3</sub>' 决定。因此，当在 PLAXIS 软件中输入 G<sub>0</sub>(参考应力下)时，计算的 G<sub>0</sub> 值会偏小，尤其是 K<sub>0</sub> 比较小和 m 值比较大时。为解决该问题，建议在 PLAXIS 软件输入 G<sub>0</sub>(参考应力下) 的值时应改为该 PLAXIS 输入值从而进行修正，详情可参考文献[1]。
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("💡 提示：若要计算修正后的 G₀（PLAXIS 输入值），请启用“有效竖向应力 σ'”并重新计算。")
             else:
                 st.warning("未能获取 HSS 预测结果，请检查输入参数。")
         else:
