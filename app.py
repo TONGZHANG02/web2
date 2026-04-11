@@ -1164,10 +1164,11 @@ elif st.session_state.current_page == 'hss':
             Es_val = st.number_input("", value=10.0, format="%.2f", key="hss_Es", disabled=not enable_Es, label_visibility="collapsed")
         if enable_Es:
             input_dict["Es"] = Es_val
+        # 有效竖向应力 σ' 默认启用（value=True）
         st.markdown("**有效竖向应力 σ' (kPa)**")
         col_check, col_input = st.columns([0.2, 0.8])
         with col_check:
-            enable_sigma = st.checkbox("启用", value=False, key="enable_sigma")
+            enable_sigma = st.checkbox("启用", value=True, key="enable_sigma")
         with col_input:
             sigma_val = st.number_input("", value=100.0, format="%.2f", key="hss_sigma", disabled=not enable_sigma, label_visibility="collapsed")
         if enable_sigma:
@@ -1195,7 +1196,6 @@ elif st.session_state.current_page == 'hss':
                     outputs['c'] = 0.0
                 st.subheader("📐 HSS 模型参数")
                 data = []
-                # 记录原始 G0 值，以便后续计算
                 original_G0 = None
                 for name, value in outputs.items():
                     unit = next((out.unit for out in hss.outputs if out.name == name), "")
@@ -1215,31 +1215,24 @@ elif st.session_state.current_page == 'hss':
                     if name == "G0":
                         original_G0 = value
                 
-                # 计算修正后的 G0（PLAXIS 输入值）—— 仅当 sigma 被启用时
+                # 计算修正后的 G0（PLAXIS 输入值）
                 if 'sigma' in input_dict and original_G0 is not None:
-                    # 获取所需的参数
                     phi_deg = outputs.get('phi', 0.0)
                     c = outputs.get('c', 0.0)
                     K0 = outputs.get('K0', 0.0)
                     m = outputs.get('m', 0.0)
-                    sigma = input_dict['sigma']  # 单位 kPa
-                    # 角度转弧度
+                    sigma = input_dict['sigma']
                     phi_rad = np.radians(phi_deg)
                     cos_phi = np.cos(phi_rad)
                     sin_phi = np.sin(phi_rad)
-                    # 计算分子和分母
                     numerator = c * cos_phi + ((1 + 2 * K0) / 3) * sin_phi * sigma
                     denominator = c * cos_phi + K0 * sin_phi * sigma
-                    # 防止除零
                     if denominator != 0:
                         factor = numerator / denominator
                         calibrated_G0 = original_G0 * (factor ** m)
                     else:
                         calibrated_G0 = float('nan')
-                    # 格式化输出（保留两位小数）
                     calibrated_str = f"{calibrated_G0:.2f}" if not np.isnan(calibrated_G0) else "无法计算"
-                    # 在 G0 行之后插入新行
-                    # 找到 G0 行的位置
                     insert_pos = None
                     for i, item in enumerate(data):
                         if item["参数"] == param_display_names["G0"]:
@@ -1256,7 +1249,6 @@ elif st.session_state.current_page == 'hss':
                 df_hss = pd.DataFrame(data)
                 st.markdown(df_to_html_table(df_hss, escape_html=False), unsafe_allow_html=True)
                 
-                # 添加解释说明（仅当 sigma 被启用时显示，否则可显示提示）
                 if 'sigma' in input_dict:
                     st.markdown("""
                     <div style="background-color: #f0f8ff; border-left: 4px solid #3b82f6; padding: 10px; margin-top: 15px; font-size: 0.85rem; border-radius: 8px;">
