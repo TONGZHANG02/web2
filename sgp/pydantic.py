@@ -37,7 +37,7 @@ class HashableBaseModelIO(BaseModel, from_attributes=True, ignored_types=(Cython
     def __hash__(self) -> int:
         """Return the hash of the model."""
         string = f"{self.__class__.__qualname__}::{self.model_dump_json(exclude=self.exclude)}"
-        return int.from_bytes(sha512(string.encode("utf-8", errors="ignore")).digest())
+        return int.from_bytes(sha512(string.encode("utf-8", errors="ignore")).digest(), byteorder='big')
 
     def model_dump(self, **kwargs) -> dict[str, Any]:
         try:
